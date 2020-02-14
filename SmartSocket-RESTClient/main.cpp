@@ -4,30 +4,73 @@ using namespace std;
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.h"
-#include "json.hpp"
+using namespace httplib;
 
-int main() {
-	using namespace httplib;
+#include "json.hpp"
+using json = nlohmann::json;
+
+void SetProperty(string token_, string thing_, string property_, string value_) {
 	SSLClient client("localhost", 4443);
 
-	fstream cred_input("credentials.txt", ios::in);
-	std::string login, password;
-	cred_input >> login >> password;
+	string path = "/things/" + thing_ + "/properties/" + property_;
 
-	using json = nlohmann::json;
-	json auth_body = {
-		{"email", login},
-		{"password", password}
+	Headers headers = {
+		{"Accept", "application/json"},
+		{"Authorization:Bearer", token_}
 	};
 
-	Headers auth_headers = {
+	json property_json = {
+		{property_, value_}
+	};
+
+	client.Put(path.c_str(), headers, property_json.dump(), "application/json");
+}
+
+string GetProperty(string token_, string thing_, string property_) {
+	SSLClient client("localhost", 4443);
+
+	string path = "/things/" + thing_ + "/properties/" + property_;
+
+	Headers headers = {
+		{"Accept", "application/json"},
+		{"Content-Type", "application / json"},
+		{"Authorization:Bearer", token_}
+	};
+
+	auto response = client.Get(path.c_str(), headers);
+
+	if (response == nullptr)
+		return "";
+
+	json response_json = json::parse(response->body);
+	return response_json[property_].get<string>();
+}
+
+string Authorize(const string& login_, const string& password_) {
+	SSLClient client("localhost", 4443);
+
+	json body = {
+		{"email", login_},
+		{"password", password_}
+	};
+
+	Headers headers = {
 		{"Accept", "application/json"}
 	};
 
-	auto auth_response = client.Post("/login", auth_headers, auth_body.dump(), "application/json");
+	auto response = client.Post("/login", headers, body.dump(), "application/json");
+	if (response == nullptr)
+		return "";
 
-	if (auth_response != nullptr)
-		cout << auth_response->body << "\n";
+	return response->body;
+}
+
+int main() {
+	fstream cred_input("credentials.txt", ios::in);
+	string login, password;
+	cred_input >> login >> password;
+
+	string token = Authorize(login, password);
 
 	return 0;
 }
